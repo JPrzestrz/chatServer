@@ -3,50 +3,44 @@ import threading
 
 HOST = '127.0.0.1' # IP address of the server
 PORT = 5555 # Port number to listen on
-BUFFER_SIZE = 1024 # Maximum message size
 
-clients = {} # Dictionary of connected clients
+clients = {} # Dictionary to store connected clients and their usernames
 
-def broadcast(message, sender):
-    """Function to broadcast a message to all connected clients."""
-    for client, client_sock in clients.items():
-        if client_sock != sender:
-            client_sock.sendall(message)
-
-def handle_client(client_sock, address):
-    """Function to handle a client connection."""
-    username = client_sock.recv(BUFFER_SIZE).decode('utf-8')
-    clients[username] = client_sock
-    print(f"Client {username} connected from {address}")
-    broadcast(f"{username} joined the chat", client_sock)
+def handle_client(conn, addr):
+    """Function to handle communications with a client."""
+    print(f"New connection from {addr}")
+    conn.sendall("Enter your username: ".encode('utf-8'))
+    username = conn.recv(1024).decode('utf-8').strip()
+    print(f"{addr} chose the username '{username}'")
+    clients[conn] = username # Add the client and their username to the dictionary
+    broadcast(f"{username} has joined the chat.")
     while True:
-        message = client_sock.recv(BUFFER_SIZE).decode('utf-8')
-        if message.startswith('/quit'):
+        data = conn.recv(1024) # Receive up to 1024 bytes of data
+        if not data:
             break
-        broadcast(message, client_sock)
-    client_sock.close()
-    del clients[username]
-    broadcast(f"{username} left the chat", None)
+        message = data.decode('utf-8')
+        print(f"{username}: {message}")
+        broadcast(f"{username}: {message}")
+    conn.close()
+    del clients[conn] # Remove the client from the dictionary
+    broadcast(f"{username} has left the chat.")
+
+def broadcast(message):
+    """Function to broadcast a message to all connected clients."""
+    for client, username in clients.items():
+        client.sendall(message.encode('utf-8'))
 
 def start_server():
-    """Function to start the server program."""
+    """Function to start the server and listen for incoming connections."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen()
-        print(f"Server started on {HOST}:{PORT}")
+        print(f"Server listening on {HOST}:{PORT}")
         while True:
-            client_sock, address = s.accept()
-            client_thread = threading.Thread(target=handle_client, args=(client_sock, address))
+            conn, addr = s.accept() # Wait for a client to connect
+            # Create a new thread to handle the client's communications
+            client_thread = threading.Thread(target=handle_client, args=(conn, addr))
             client_thread.start()
-
-            # Wait for input from the administrator to shut down the server
-            shutdown_input = input("Enter /quit to shut down the server\n")
-            if shutdown_input == '/quit':
-                print("Shutting down the server gracefully...")
-                for client_sock in clients.values():
-                    client_sock.sendall("/quit".encode('utf-8'))
-                s.close()
-                break
 
 if __name__ == '__main__':
     start_server()
