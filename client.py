@@ -12,6 +12,7 @@ def receive_messages(sock):
             break
         message = data.decode('utf-8')
         print(message)
+        print("> ", end='', flush=True)
 
 def start_client():
     """Function to start the client program."""
@@ -25,8 +26,10 @@ def start_client():
         receive_thread.start()
         # Start the main loop
         while True:
+            print("> ", end='', flush=True)
             message = input()
-            s.sendall(f"{username}: {message}".encode('utf-8'))
+            s.sendall(f" {message}".encode('utf-8'))
+            print("\033[A\033[K> ", end='', flush=True)
 
 if __name__ == '__main__':
     start_client()
